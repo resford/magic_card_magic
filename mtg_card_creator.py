@@ -78,7 +78,7 @@ class MTGCardArtCreator:
         values = result.get('values', [])
         created_cards_info = []
 
-        for row in values[315:375]:  # Assuming the first row contains headers
+        for row in values[1:]:  # Assuming the first row contains headers
             if len(row) >= 10 and row[2] is not None and row[2] != "":  # Ensure row has enough data and prompt is not null
                 filename, prompt = row[1], row[2]
                 try:
