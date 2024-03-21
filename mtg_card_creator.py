@@ -19,7 +19,29 @@ from selenium.webdriver.support.ui import Select
 import time
 
 class MTGCardArtCreator:
+    """
+    A class to generate and upload Magic: The Gathering card art images using OpenAI's image generation API, and manage them on Google Drive and Google Sheets.
+
+    Attributes:
+    openai_api_key (str): The API key for OpenAI.
+    google_creds_file (str): Path to the Google service account credentials file.
+    spreadsheet_id (str): The ID of the Google Sheets spreadsheet containing card information.
+    folder_id (str): The ID of the Google Drive folder where images will be uploaded.
+    client (OpenAI): The OpenAI client for API access.
+    creds (Credentials): Google service account credentials.
+    sheet_service (Resource): The Google Sheets API service instance.
+    drive_service (Resource): The Google Drive API service instance.
+    """
     def __init__(self, openai_api_key, google_creds_file, spreadsheet_id, folder_id):
+        """
+        Initializes the MTGCardArtCreator with the necessary credentials and IDs.
+
+        Parameters:
+        openai_api_key (str): The API key for OpenAI.
+        google_creds_file (str): Path to the Google service account credentials file.
+        spreadsheet_id (str): The ID of the Google Sheets spreadsheet containing card information.
+        folder_id (str): The ID of the Google Drive folder where images will be uploaded.
+        """
         self.client = OpenAI(api_key=openai_api_key)
         self.spreadsheet_id = spreadsheet_id
         self.folder_id = folder_id
@@ -31,12 +53,26 @@ class MTGCardArtCreator:
         self.drive_service = build('drive', 'v3', credentials=self.creds)
 
     def adjust_image_size(self, image_path):
+        """
+        Adjusts the size of an image to a maximum of 900x900 pixels and saves it.
+
+        Parameters:
+        image_path (str): The path to the image file to be adjusted.
+        """
         with Image.open(image_path) as img:
             size = (900, 900)
             img.thumbnail(size, Image.Resampling.LANCZOS)
             img.save(image_path, optimize=True)
 
     def generate_and_upload_images(self):
+        """
+        Generates and uploads images based on the prompts from the Google Sheets spreadsheet.
+
+        Iterates through a specific range in the 'Cards' sheet, generates images using OpenAI's DALL·E, and uploads them to Google Drive.
+
+        Returns:
+        list: A list of dictionaries containing information about the created cards and their image paths.
+        """
         range_name = 'Cards'  # Adjust as needed
         result = self.sheet_service.spreadsheets().values().get(spreadsheetId=self.spreadsheet_id, range=range_name).execute()
         values = result.get('values', [])
@@ -88,7 +124,25 @@ class MTGCardArtCreator:
         return created_cards_info
 
 class MTGCardCreator:
+    """
+    A class to automate the process of creating MTG cards on the MTGCardsmith website using Selenium.
+
+    Attributes:
+    image_path (str): The path to the card's image file.
+    card_title (str): The title of the MTG card.
+    other_text_fields (dict): Other text fields related to the card, such as type, abilities, etc.
+    driver (WebDriver): The Selenium WebDriver instance.
+    is_logged_in (bool): Flag indicating whether the user is logged in or not.
+    """
     def __init__(self, image_path, card_title, other_text_fields=None):
+        """
+        Initializes the MTGCardCreator with an image path, card title, and optional text fields.
+
+        Parameters:
+        image_path (str): The path to the card's image file.
+        card_title (str): The title of the MTG card.
+        other_text_fields (dict, optional): Other text fields related to the card. Defaults to None.
+        """
         self.image_path = image_path
         self.card_title = card_title
         self.other_text_fields = other_text_fields if other_text_fields else {}
@@ -96,11 +150,20 @@ class MTGCardCreator:
         self.is_logged_in = False  # Flag to track login status
 
     def init_driver(self):
+        """
+        Initializes and returns a Selenium WebDriver instance with Chrome options.
+
+        Returns:
+        WebDriver: The initialized Selenium WebDriver instance.
+        """
         options = Options()
         options.add_experimental_option('excludeSwitches', ['enable-logging'])  # Suppress logging
         return webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
 
     def login(self):
+        """
+        Logs into the MTGCardsmith website using predefined credentials.
+        """
         if self.is_logged_in:  # Check if already logged in
             return  # Skip login if already logged in
 
@@ -122,6 +185,12 @@ class MTGCardCreator:
         self.is_logged_in = True  # Update flag after successful login
 
     def navigate_to_page(self, url="https://mtgcardsmith.com/mtg-card-maker/"):
+        """
+        Navigates to a specified URL using the Selenium WebDriver.
+
+        Parameters:
+        url (str): The URL to navigate to. Defaults to the MTG card maker page.
+        """
         self.driver.get(url)
         try:
             WebDriverWait(self.driver, 10).until(
@@ -131,6 +200,9 @@ class MTGCardCreator:
             self.driver.execute_script("window.stop();")
 
     def upload_image_and_confirm(self):
+        """
+        Uploads an image for the card and confirms the upload on the MTGCardsmith website.
+        """
         absolute_image_path = os.path.abspath(self.image_path)
         file_input = self.driver.find_element(By.CSS_SELECTOR, "input[type='file']")
         file_input.send_keys(absolute_image_path)
@@ -141,12 +213,18 @@ class MTGCardCreator:
         time.sleep(2)
 
     def finalize_card_creation(self):
+        """
+        Finalizes the card creation process by clicking the 'Next' button on the MTGCardsmith website.
+        """
         next_button = WebDriverWait(self.driver, 20).until(
             EC.element_to_be_clickable((By.CSS_SELECTOR, "input[type='submit'][value='Next']"))
         )
         next_button.click()
 
     def enter_card_title_and_other_fields(self):
+        """
+        Enters the card title and other related text fields into the MTGCardsmith card creator form.
+        """
         self.wait_and_send_keys("//input[@name='name'][@placeholder='Card Title (Required)']", self.card_title)
 
         if 'mana_value' in self.other_text_fields:
@@ -157,160 +235,51 @@ class MTGCardCreator:
             self.select_custom_dropdown_option('s2id_autogen1', self.other_text_fields['card_type'])
             print(f"Done selecting creature_type")
 
-        ability_texts = []
-
-        if 'static_abilities' in self.other_text_fields:
-            static_ability_text = self.other_text_fields['static_abilities']
-            if static_ability_text:
-                # Split triggered ability text into chunks of 45 characters
-                chunks = [static_ability_text[i:i+45] for i in range(0, len(static_ability_text), 45)]
-                formatted_chunks = []
-
-                # Iterate over each chunk
-                for chunk in chunks:
-                    # Find the index of the first space after character 45
-                    split_index = chunk.find(' ')
-
-                    # If a space is found after character 45, split the text at that index
-                    if split_index != -1:
-                        formatted_chunks.append(chunk[:split_index])
-                        formatted_chunks.append(chunk[split_index+1:])
-                    else:
-                        # If no space is found after character 45, split at character 45
-                        formatted_chunks.append(chunk)
-
-                # Join the chunks with line breaks
-                formatted_static_ability_text = '\n'.join(formatted_chunks)
-                ability_texts.append(formatted_static_ability_text)
-
-        if 'triggered_abilities_1' in self.other_text_fields:
-            triggered_ability_1_text = self.other_text_fields['triggered_abilities_1']
-            if triggered_ability_1_text:
-                # Split triggered ability text into chunks of 45 characters
-                chunks = [triggered_ability_1_text[i:i+45] for i in range(0, len(triggered_ability_1_text), 45)]
-                formatted_chunks = []
-
-                # Iterate over each chunk
-                for chunk in chunks:
-                    # Find the index of the first space after character 45
-                    split_index = chunk.find(' ')
-
-                    # If a space is found after character 45, split the text at that index
-                    if split_index != -1:
-                        formatted_chunks.append(chunk[:split_index])
-                        formatted_chunks.append(chunk[split_index+1:])
-                    else:
-                        # If no space is found after character 45, split at character 45
-                        formatted_chunks.append(chunk)
-
-                # Join the chunks with line breaks
-                formatted_triggered_ability_1_text = '\n'.join(formatted_chunks)
-                ability_texts.append(formatted_triggered_ability_1_text)
-
-        if 'triggered_abilities_2' in self.other_text_fields:
-            triggered_ability_text = self.other_text_fields['triggered_abilities_2']
-            if triggered_ability_text:
-                # Split triggered ability text into chunks of 45 characters
-                chunks = [triggered_ability_text[i:i+45] for i in range(0, len(triggered_ability_text), 45)]
-                formatted_chunks = []
-
-                # Iterate over each chunk
-                for chunk in chunks:
-                    # Find the index of the first space after character 45
-                    split_index = chunk.find(' ')
-
-                    # If a space is found after character 45, split the text at that index
-                    if split_index != -1:
-                        formatted_chunks.append(chunk[:split_index])
-                        formatted_chunks.append(chunk[split_index+1:])
-                    else:
-                        # If no space is found after character 45, split at character 45
-                        formatted_chunks.append(chunk)
-
-                # Join the chunks with line breaks
-                formatted_triggered_ability_text = '\n'.join(formatted_chunks)
-                ability_texts.append(formatted_triggered_ability_text)
-
-        if 'triggered_abilities_3' in self.other_text_fields:
-            triggered_ability_text = self.other_text_fields['triggered_abilities_3']
-            if triggered_ability_text:
-                # Split triggered ability text into chunks of 45 characters
-                chunks = [triggered_ability_text[i:i+45] for i in range(0, len(triggered_ability_text), 45)]
-                formatted_chunks = []
-
-                # Iterate over each chunk
-                for chunk in chunks:
-                    # Find the index of the first space after character 45
-                    split_index = chunk.find(' ')
-
-                    # If a space is found after character 45, split the text at that index
-                    if split_index != -1:
-                        formatted_chunks.append(chunk[:split_index])
-                        formatted_chunks.append(chunk[split_index+1:])
-                    else:
-                        # If no space is found after character 45, split at character 45
-                        formatted_chunks.append(chunk)
-
-                # Join the chunks with line breaks
-                formatted_triggered_ability_text = '\n'.join(formatted_chunks)
-                ability_texts.append(formatted_triggered_ability_text)
-
-        if 'triggered_abilities_4' in self.other_text_fields:
-            triggered_ability_text = self.other_text_fields['triggered_abilities_4']
-            if triggered_ability_text:
-                # Split triggered ability text into chunks of 45 characters
-                chunks = [triggered_ability_text[i:i+45] for i in range(0, len(triggered_ability_text), 45)]
-                formatted_chunks = []
-
-                # Iterate over each chunk
-                for chunk in chunks:
-                    # Find the index of the first space after character 45
-                    split_index = chunk.find(' ')
-
-                    # If a space is found after character 45, split the text at that index
-                    if split_index != -1:
-                        formatted_chunks.append(chunk[:split_index])
-                        formatted_chunks.append(chunk[split_index+1:])
-                    else:
-                        # If no space is found after character 45, split at character 45
-                        formatted_chunks.append(chunk)
-
-                # Join the chunks with line breaks
-                formatted_triggered_ability_text = '\n'.join(formatted_chunks)
-                ability_texts.append(formatted_triggered_ability_text)
-
-        if 'oracle' in self.other_text_fields:
-            oracle_text = self.other_text_fields['oracle']
-            if oracle_text:
-                # Split oracle text into chunks of 40 characters and join with line breaks
-                oracle_chunks = [oracle_text[i:i+40] for i in range(0, len(oracle_text), 40)]
-                formatted_oracle_text = '\n'.join(oracle_chunks)
-                ability_texts.append(formatted_oracle_text)
-
-        if 'flavor' in self.other_text_fields:
-            flavor_text = self.other_text_fields['flavor']
-            if flavor_text:
-                # Add an initial line break
-                ability_texts.append('\n')
-
-                # Split flavor text into chunks of 40 characters and join with line breaks
-                flavor_chunks = [flavor_text[i:i+40] for i in range(0, len(flavor_text), 40)]
-                formatted_flavor_text = '\n'.join(flavor_chunks)
-
-                # Append the formatted flavor text to the ability_texts list
-                ability_texts.append(formatted_flavor_text)
+        # New approach for handling abilities
+        ability_keys = ['static_abilities', 'triggered_abilities_1', 'triggered_abilities_2', 'triggered_abilities_3', 'triggered_abilities_4']
+        for key in ability_keys:
+            self.process_and_add_ability_text(key)
 
 
-        # Concatenate all ability texts together
-        combined_text = '\n'.join(ability_texts)
+    def process_and_add_ability_text(self, ability_key):
+        """
+        Processes and adds the text for a given ability field to the 'ability_texts' list.
 
-        # Paste the combined text into the text box
-        self.wait_and_send_keys("//textarea[@name='description']", combined_text)
+        Parameters:
+        ability_key (str): The key corresponding to the ability in 'other_text_fields'.
+        """
+        ability_text = self.other_text_fields.get(ability_key)
+        if ability_text:
+            # Split ability text into chunks of 45 characters, respecting word boundaries where possible.
+            formatted_chunks = self.split_ability_text(ability_text, 45)
+            # Join the chunks with line breaks
+            formatted_ability_text = '\n'.join(formatted_chunks)
+            self.ability_texts.append(formatted_ability_text)
 
-        if 'rarity' in self.other_text_fields:
-            print(f"Trying to select rarity")
-            self.select_dropdown_option_by_value("rarity", self.other_text_fields['rarity'])
-            print(f"Done selecting rarity")
+    @staticmethod
+    def split_ability_text(text, chunk_size):
+        """
+        Splits text into chunks of a specified size, attempting to respect word boundaries.
+
+        Parameters:
+        text (str): The text to split.
+        chunk_size (int): The maximum size of each chunk.
+
+        Returns:
+        list: A list of text chunks.
+        """
+        chunks = [text[i:i+chunk_size] for i in range(0, len(text), chunk_size)]
+        formatted_chunks = []
+
+        for chunk in chunks:
+            split_index = chunk.rfind(' ')
+            if split_index != -1 and len(chunk) > chunk_size:
+                formatted_chunks.append(chunk[:split_index])
+                formatted_chunks.append(chunk[split_index+1:])
+            else:
+                formatted_chunks.append(chunk)
+
+        return formatted_chunks
 
     def select_dropdown_option_by_value(self, dropdown_id, value):
         try:
@@ -350,7 +319,6 @@ class MTGCardCreator:
         )
 
         # Type the option text into the specific search box
-        # Type the option text into the specific search box
         search_input.send_keys(option_text)
 
         # Press Enter key
@@ -386,6 +354,9 @@ class MTGCardCreator:
         publish_button.click()
 
     def run(self):
+        """
+        Executes the complete card creation process by navigating to the page, uploading an image, and entering card details.
+        """
         self.navigate_to_page()
         self.upload_image_and_confirm()
         self.finalize_card_creation()
