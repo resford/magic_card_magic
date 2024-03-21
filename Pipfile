@@ -1,0 +1,19 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+requests = "*"
+pillow = "*"
+google-auth = "*"
+google-auth-oauthlib = "*"
+google-api-python-client = "*"
+selenium = "*"
+webdriver-manager = "*"
+openai = "*"
+
+[dev-packages]
+
+[requires]
+python_version = "3.9"
