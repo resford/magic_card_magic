@@ -1,6 +1,6 @@
 import os
 import requests
-from config import openai_api_key, google_creds_file, spreadsheet_id, folder_id
+from config import openai_api_key, google_creds_file, spreadsheet_id, folder_id, username, password
 from PIL import Image
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
@@ -167,8 +167,8 @@ class MTGCardCreator:
         if self.is_logged_in:  # Check if already logged in
             return  # Skip login if already logged in
 
-        username = "mckonkie_sloughswater"
-        password = "grand2024"
+        username = username
+        password = password
 
         self.driver.get("https://mtgcardsmith.com/login")
         time.sleep(2)
@@ -365,10 +365,10 @@ class MTGCardCreator:
 
 
 def main():
-    openai_api_key = 'YOUR_OPENAI_API_KEY'
-    google_creds_file = 'PATH_TO_YOUR_GOOGLE_CREDS_FILE.json'
-    spreadsheet_id = 'YOUR_SPREADSHEET_ID'
-    folder_id = 'YOUR_FOLDER_ID'
+    openai_api_key = openai_api_key
+    google_creds_file = google_creds_file
+    spreadsheet_id = spreadsheet_id
+    folder_id = folder_id
 
     # Initialize the MTGCardArtCreator with your API keys and IDs
     art_creator = MTGCardArtCreator(openai_api_key, google_creds_file, spreadsheet_id, folder_id)
